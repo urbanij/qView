@@ -77,6 +77,45 @@ QString readExifData(const QString &imagePath) {
             return "N/A";
         };
 
+        auto getGpsCoordinates = [&](const char* coordKey, const char* refKey) -> QString {
+            auto coordIt = exifData.findKey(Exiv2::ExifKey(coordKey));
+            auto refIt = exifData.findKey(Exiv2::ExifKey(refKey));
+
+            if (coordIt != exifData.end() && refIt != exifData.end()) {
+                QString ref = QString::fromStdString(refIt->toString());
+                if (ref.isEmpty()) return "N/A";
+
+                const auto value = coordIt->getValue();
+                if (value->count() < 3) return "N/A";
+
+                Exiv2::Rational deg = value->toRational(0);
+                Exiv2::Rational min = value->toRational(1);
+                Exiv2::Rational sec = value->toRational(2);
+
+                double degrees = static_cast<double>(deg.first) / deg.second;
+                double minutes = static_cast<double>(min.first) / min.second;
+                double seconds = static_cast<double>(sec.first) / sec.second;
+                int secPrecision = (sec.second > 1) ? static_cast<int>(std::ceil(std::log10(sec.second))) : 0;
+
+                auto padSeconds = [](double seconds, int precision) -> QString {
+                    int intPart = static_cast<int>(seconds);
+                    double fracPart = seconds - intPart;
+
+                    QString intStr = QString("%1").arg(intPart, 2, 10, QChar('0'));
+                    QString fracStr = QString::number(fracPart, 'f', precision).mid(1);
+
+                    return intStr + fracStr;
+                };
+
+                return QString("%1° %2′ %3″ %4")
+                    .arg(degrees, 0, 'f', 0)
+                    .arg(minutes, 2, 'f', 0, '0')
+                    .arg(padSeconds(seconds, secPrecision))
+                    .arg(ref);
+            }
+            return "N/A";
+        };
+
         exifOutput += "Camera Make: " + getStr("Exif.Image.Make") + "\n";
         exifOutput += "Camera Model: " + getStr("Exif.Image.Model") + "\n";
         exifOutput += "Software: " + getStr("Exif.Image.Software") + "\n";
@@ -90,8 +129,8 @@ QString readExifData(const QString &imagePath) {
         exifOutput += "Light Source: " + getStr("Exif.Photo.LightSource") + "\n";
         exifOutput += "Flash: " + getStr("Exif.Photo.Flash") + "\n";
         exifOutput += "Focal Length: " + getRationalAsFloat("Exif.Photo.FocalLength") + " mm\n";
-        exifOutput += "GPS Latitude: " + getStr("Exif.GPSInfo.GPSLatitude") + "\n";
-        exifOutput += "GPS Longitude: " + getStr("Exif.GPSInfo.GPSLongitude") + "\n";
+        exifOutput += "GPS Latitude: " + getGpsCoordinates("Exif.GPSInfo.GPSLatitude", "Exif.GPSInfo.GPSLatitudeRef") + "\n";
+        exifOutput += "GPS Longitude: " + getGpsCoordinates("Exif.GPSInfo.GPSLongitude", "Exif.GPSInfo.GPSLongitudeRef") + "\n";
         return exifOutput;
     } catch (const Exiv2::Error &e) {
         return QString("EXIF Error: ") + e.what();
