@@ -117,6 +117,25 @@ QString readExifData(const QString &imagePath) {
             return "N/A";
         };
 
+        auto getGpsAltitude = [&]() -> QString {
+            auto altIt = exifData.findKey(Exiv2::ExifKey("Exif.GPSInfo.GPSAltitude"));
+            auto refIt = exifData.findKey(Exiv2::ExifKey("Exif.GPSInfo.GPSAltitudeRef"));
+
+            if (altIt != exifData.end() && refIt != exifData.end()) {
+                Exiv2::Rational alt = altIt->toRational();
+                double altitude = static_cast<double>(alt.first) / alt.second;
+                int altPrecision = (alt.second > 1) ? static_cast<int>(std::ceil(std::log10(alt.second))) : 0;
+
+                QString ref = QString::fromStdString(refIt->toString());
+                if (ref == "1") {
+                    altitude = -altitude;
+                }
+
+                return QString::number(altitude, 'f', altPrecision) + " m";
+            }
+            return "N/A";
+        };
+
         exifOutput += "Camera Make: " + getStr("Exif.Image.Make") + "\n";
         exifOutput += "Camera Model: " + getStr("Exif.Image.Model") + "\n";
         exifOutput += "Software: " + getStr("Exif.Image.Software") + "\n";
@@ -132,6 +151,7 @@ QString readExifData(const QString &imagePath) {
         exifOutput += "Focal Length: " + getRationalAsFloat("Exif.Photo.FocalLength") + " mm\n";
         exifOutput += "GPS Latitude: " + getGpsCoordinates("Exif.GPSInfo.GPSLatitude", "Exif.GPSInfo.GPSLatitudeRef") + "\n";
         exifOutput += "GPS Longitude: " + getGpsCoordinates("Exif.GPSInfo.GPSLongitude", "Exif.GPSInfo.GPSLongitudeRef") + "\n";
+        exifOutput += "GPS Altitude: " + getGpsAltitude() + "\n";
         return exifOutput;
     } catch (const Exiv2::Error &e) {
         return QString("EXIF Error: ") + e.what();
